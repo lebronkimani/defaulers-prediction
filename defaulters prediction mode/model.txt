@@ -1,0 +1,91 @@
+import pandas as pd
+import numpy as np
+import pickle
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
+
+# Load dataset
+df = pd.read_csv("data/loans.csv")
+
+# Keep useful columns
+df = df[[
+    "loan_status",
+    "loan_amnt",
+    "int_rate",
+    "annual_inc",
+    "dti",
+    "grade"
+]]
+
+# Clean target
+df = df[df["loan_status"].isin(["Fully Paid", "Charged Off"])]
+df["loan_status"] = df["loan_status"].map({
+    "Fully Paid": 0,
+    "Charged Off": 1
+})
+
+# Handle missing values
+df = df.dropna()
+
+# Encode categorical
+le = LabelEncoder()
+df["grade"] = le.fit_transform(df["grade"])
+
+# Features & target
+X = df.drop("loan_status", axis=1)
+y = df["loan_status"]
+
+# Split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# Model
+model = RandomForestClassifier(
+    n_estimators=200,
+    max_depth=10,
+    random_state=42
+)
+
+model.fit(X_train, y_train)
+
+# Evaluation
+preds = model.predict(X_test)
+print(classification_report(y_test, preds))
+
+# Save model
+pickle.dump(model, open("model/model.pkl", "wb"))
+print("Model saved!")
+
+
+
+import streamlit as st
+import numpy as np
+import pickle
+
+# Load model
+model = pickle.load(open("model/model.pkl", "rb"))
+
+st.title(" Loan Default Prediction System")
+
+st.write("Enter borrower details:")
+
+loan_amnt = st.number_input("Loan Amount", 1000, 50000, 10000)
+int_rate = st.number_input("Interest Rate", 5.0, 30.0, 12.0)
+annual_inc = st.number_input("Annual Income", 10000, 200000, 50000)
+dti = st.number_input("Debt-to-Income Ratio", 0.0, 50.0, 15.0)
+grade = st.selectbox("Loan Grade (0-6)", [0, 1, 2, 3, 4, 5, 6])
+
+if st.button("Predict Default Risk"):
+    
+    input_data = np.array([[loan_amnt, int_rate, annual_inc, dti, grade]])
+    
+    prediction = model.predict(input_data)[0]
+
+    if prediction == 1:
+        st.error(" High Risk: Loan will likely default")
+    else:
+        st.success(" Low Risk: Loan likely to be repaid")
